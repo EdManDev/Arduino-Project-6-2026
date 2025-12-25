@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pi Camera & Motor Control</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        img {
+            max-width: 90%;
+            height: auto;
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .info {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #2a2a2a;
+            border-radius: 5px;
+        }
+        .motor-controls {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+        }
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+            max-width: 300px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .control-btn {
+            padding: 20px;
+            font-size: 24px;
+            border: none;
+            border-radius: 8px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .control-btn:hover {
+            background-color: #45a049;
+            transform: scale(1.05);
+        }
+        .control-btn:active, .control-btn.pressed {
+            background-color: #3d8b40;
+            transform: scale(0.95);
+        }
+        .control-btn.stop {
+            background-color: #f44336;
+        }
+        .control-btn.stop:hover {
+            background-color: #da190b;
+        }
+        .speed-control {
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        .speed-slider {
+            width: 200px;
+            height: 8px;
+            border-radius: 5px;
+            background: #444;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .speed-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+        }
+        .speed-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            border: none;
+        }
+        .speed-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4CAF50;
+            min-width: 50px;
+        }
+        .qr-container {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #2a2a2a;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 600px;
+        }
+        .qr-result {
+            background-color: #1a1a1a;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+            margin-top: 10px;
+            word-wrap: break-word;
+            font-family: monospace;
+            animation: fadeIn 0.3s;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .qr-timestamp {
+            color: #888;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .no-qr {
+            color: #888;
+            font-style: italic;
+        }
+        .scanning {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #4CAF50;
+            animation: pulse 2s infinite;
+            margin-right: 8px;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .status-message {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #1a1a1a;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #888;
+        }
+        .keyboard-hint {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #1a1a1a;
+            border-radius: 5px;
+            text-align: center;
+            color: #4CAF50;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <img src="{{ url_for('video_feed') }}" alt="Camera Stream">
+    <div class="info">
+        <p>Camera: OV5647 Arducam | Resolution: 640x480 @ 30fps</p>
+    </div>
+    
+    <div class="motor-controls">        
+        <div class="control-grid">
+            <div></div>
+            <button class="control-btn" id="btn-forward"
+                    onmousedown="startCommand('forward')" 
+                    onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" 
+                    ontouchstart="startCommand('forward')" 
+                    ontouchend="stopCommand()">
+                ⬆️
+            </button>
+            <div></div>
+            
+            <button class="control-btn" id="btn-left"
+                    onmousedown="startCommand('left')" 
+                    onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" 
+                    ontouchstart="startCommand('left')" 
+                    ontouchend="stopCommand()">
+                ⬅️
+            </button>
+            <button class="control-btn stop" onclick="sendCommand('stop')">
+                ⏹️
+            </button>
+            <button class="control-btn" id="btn-right"
+                    onmousedown="startCommand('right')" 
+                    onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" 
+                    ontouchstart="startCommand('right')" 
+                    ontouchend="stopCommand()">
+                ➡️
+            </button>
+            
+            <div></div>
+            <button class="control-btn" id="btn-backward"
+                    onmousedown="startCommand('backward')" 
+                    onmouseup="stopCommand()"
+                    onmouseleave="stopCommand()" 
+                    ontouchstart="startCommand('backward')" 
+                    ontouchend="stopCommand()">
+                ⬇️
+            </button>
+            <div></div>
+        </div>
+        
+        <div class="keyboard-hint">
+            ⌨️ Use arrow keys on keyboard to control!
+        </div>
+        
+        <div class="speed-control">
+            <label>Speed:</label>
+            <input type="range" min="0" max="100" value="80" class="speed-slider" id="speedSlider" oninput="updateSpeed(this.value)">
+            <span class="speed-value" id="speedValue">80%</span>
+        </div>
+        
+        <div class="status-message" id="motorStatus">Ready</div>
+    </div>
+    
+    <div class="qr-container">
+        <h2>🔍 QR Code Scanner</h2>
+        <p class="scanning"><span class="status-indicator"></span>Scanning continuously...</p>
+        <div id="qr-results">
+            <p class="no-qr">Point camera at a QR code...</p>
+        </div>
+    </div>
+
+    <script>
+        let lastQRData = '';
+        let currentSpeed = 80;
+        let commandInterval = null;
+        let activeKeys = {};  // Track which keys are currently pressed
+        
+        function sendCommand(command) {
+            fetch('/motor_control', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    command: command,
+                    speed: currentSpeed
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('motorStatus').textContent = data.status || 'Command sent';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('motorStatus').textContent = 'Error: ' + error.message;
+            });
+        }
+        
+        function startCommand(command) {
+            // Clear any existing interval first
+            if (commandInterval) {
+                clearInterval(commandInterval);
+                commandInterval = null;
+            }
+            // Send immediate command
+            sendCommand(command);
+            // Keep sending while button/key is held
+            commandInterval = setInterval(() => sendCommand(command), 100);
+        }
+        
+        function stopCommand() {
+            // Clear the interval to stop repeated commands
+            if (commandInterval) {
+                clearInterval(commandInterval);
+                commandInterval = null;
+            }
+            // Send stop command
+            sendCommand('stop');
+        }
+        
+        function updateSpeed(value) {
+            currentSpeed = parseInt(value);
+            document.getElementById('speedValue').textContent = value + '%';
+            // Update speed on server
+            fetch('/motor_speed', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ speed: currentSpeed })
+            });
+        }
+        
+        // Keyboard control
+        document.addEventListener('keydown', function(event) {
+            // Prevent default arrow key behavior (scrolling)
+            if(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+                event.preventDefault();
+            }
+            
+            // Ignore if key is already pressed (prevents key repeat)
+            if (activeKeys[event.key]) {
+                return;
+            }
+            
+            activeKeys[event.key] = true;
+            
+            let command = null;
+            let buttonId = null;
+            
+            switch(event.key) {
+                case 'ArrowUp':
+                    command = 'forward';
+                    buttonId = 'btn-forward';
+                    break;
+                case 'ArrowDown':
+                    command = 'backward';
+                    buttonId = 'btn-backward';
+                    break;
+                case 'ArrowLeft':
+                    command = 'left';
+                    buttonId = 'btn-left';
+                    break;
+                case 'ArrowRight':
+                    command = 'right';
+                    buttonId = 'btn-right';
+                    break;
+                case ' ':  // Spacebar for stop
+                    event.preventDefault();
+                    sendCommand('stop');
+                    return;
+            }
+            
+            if (command) {
+                startCommand(command);
+                // Add visual feedback
+                if (buttonId) {
+                    document.getElementById(buttonId).classList.add('pressed');
+                }
+            }
+        });
+        
+        document.addEventListener('keyup', function(event) {
+            // Mark key as released
+            activeKeys[event.key] = false;
+            
+            let buttonId = null;
+            
+            switch(event.key) {
+                case 'ArrowUp':
+                    buttonId = 'btn-forward';
+                    break;
+                case 'ArrowDown':
+                    buttonId = 'btn-backward';
+                    break;
+                case 'ArrowLeft':
+                    buttonId = 'btn-left';
+                    break;
+                case 'ArrowRight':
+                    buttonId = 'btn-right';
+                    break;
+            }
+            
+            if(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+                stopCommand();
+                // Remove visual feedback
+                if (buttonId) {
+                    document.getElementById(buttonId).classList.remove('pressed');
+                }
+            }
+        });
+        
+        function scanQR() {
+            fetch('/scan_qr')
+                .then(response => response.json())
+                .then(data => {
+                    const resultsDiv = document.getElementById('qr-results');
+                    
+                    if (data.qr_codes && data.qr_codes.length > 0) {
+                        const currentQRData = JSON.stringify(data.qr_codes);
+                        if (currentQRData !== lastQRData) {
+                            lastQRData = currentQRData;
+                            resultsDiv.innerHTML = '';
+                            
+                            data.qr_codes.forEach((qr, index) => {
+                                const resultDiv = document.createElement('div');
+                                resultDiv.className = 'qr-result';
+                                const timestamp = new Date().toLocaleTimeString();
+                                resultDiv.innerHTML = `
+                                    <strong>QR Code ${index + 1}:</strong><br>
+                                    <div style="margin-top: 10px; font-size: 1.1em;">${escapeHtml(qr.data)}</div>
+                                    <div class="qr-timestamp">Type: ${qr.type} | Detected: ${timestamp}</div>
+                                `;
+                                resultsDiv.appendChild(resultDiv);
+                            });
+                        }
+                    } else if (lastQRData !== '') {
+                        lastQRData = '';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Prevent accidental page refresh
+        window.addEventListener('beforeunload', function() {
+            sendCommand('stop');
+        });
+        
+        // Stop motors when page loses focus
+        window.addEventListener('blur', function() {
+            stopCommand();
+        });
+        
+        // Start QR scanning
+        setInterval(scanQR, 500);
+        scanQR();
+    </script>
+</body>
+</html>
